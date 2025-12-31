@@ -36,15 +36,13 @@ async function getAnalytics(slug: string): Promise<AnalyticsResponse | null> {
 
     const sevenDaysAgo = daysAgoISO(7);
 
-    const { count: clicksLast7Days, error: last7Error } = await supabase
+    const { count: clicksLast7DaysRaw, error: last7Error } = await supabase
         .from("clicks")
         .select("id", { count: "exact", head: true })
         .eq("url_id", url.id)
         .gte("created_at", sevenDaysAgo);
 
-    if (last7Error) {
-        return null;
-    }
+    const clicksLast7Days = last7Error ? 0 : (clicksLast7DaysRaw ?? 0);
 
     const { data: clicksByDayRaw, error: byDayError } = await supabase
         .from("clicks")
@@ -52,10 +50,6 @@ async function getAnalytics(slug: string): Promise<AnalyticsResponse | null> {
         .eq("url_id", url.id)
         .gte("created_at", daysAgoISO(30))
         .order("created_at", { ascending: true });
-
-    if (byDayError) {
-        return null;
-    }
 
     const dayMap = new Map<string, number>();
     for (const row of clicksByDayRaw ?? []) {
@@ -68,14 +62,12 @@ async function getAnalytics(slug: string): Promise<AnalyticsResponse | null> {
         .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
         .map(([day, count]) => ({ day, count }));
 
-    const { data: refRows, error: refError } = await supabase
+    const { data: refRowsRaw, error: refError } = await supabase
         .from("clicks")
         .select("referrer")
         .eq("url_id", url.id);
 
-    if (refError) {
-        return null;
-    }
+    const refRows = refError ? [] : (refRowsRaw ?? []);
 
     const refMap = new Map<string, number>();
     for (const row of refRows ?? []) {
@@ -88,17 +80,15 @@ async function getAnalytics(slug: string): Promise<AnalyticsResponse | null> {
         .slice(0, 5)
         .map(([referrer, count]) => ({ referrer, count }));
 
-    const { data: deviceRows, error: deviceError } = await supabase
+    const { data: deviceRowsRaw, error: deviceError } = await supabase
         .from("clicks")
         .select("device_type")
         .eq("url_id", url.id);
 
-    if (deviceError) {
-        return null;
-    }
+    const deviceRows = deviceError ? [] : (deviceRowsRaw ?? []);
 
     const deviceMap = new Map<string, number>();
-    for (const row of deviceRows ?? []) {
+    for (const row of deviceRows) {
         const key = (row.device_type as string | null) || "unknown";
         deviceMap.set(key, (deviceMap.get(key) ?? 0) + 1);
     }
@@ -116,7 +106,7 @@ async function getAnalytics(slug: string): Promise<AnalyticsResponse | null> {
             expiresAt: url.expires_at,
         },
         analytics: {
-            clicksLast7Days: clicksLast7Days ?? 0,
+            clicksLast7Days,
             clicksByDay,
             topReferrers,
             deviceBreakdown,
