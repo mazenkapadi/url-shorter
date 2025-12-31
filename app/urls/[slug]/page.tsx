@@ -1,6 +1,7 @@
 // app/urls/[slug]/page.tsx
 import Link from "next/link";
-import { headers } from "next/headers";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { daysAgoISO, startOfDayISO } from "@/lib/analytics";
 
 type AnalyticsResponse = {
     url: {
@@ -19,18 +20,108 @@ type AnalyticsResponse = {
 };
 
 async function getAnalytics(slug: string): Promise<AnalyticsResponse | null> {
-    // Build an absolute URL to the app's own API route based on the incoming request.
-    const headersList = await headers();
-    const host = headersList.get("host");
-    const protocol = headersList.get("x-forwarded-proto") ?? "https";
-    const base = host ? `${protocol}://${host}` : "http://localhost:3000";
+    const supabase = await createSupabaseServerClient();
 
-    const res = await fetch(`${base}/api/urls/${slug}/analytics`, {
-        cache: "no-store",
-    });
+    const { data: url, error: urlError } = await supabase
+        .from("urls")
+        .select("id, clicks_count, created_at, target_url, slug, expires_at")
+        .eq("slug", slug)
+        .maybeSingle();
 
-    if (!res.ok) return null;
-    return (await res.json()) as AnalyticsResponse;
+    if (urlError || !url) {
+        return null;
+    }
+
+    const totalClicks = url.clicks_count as number;
+
+    const sevenDaysAgo = daysAgoISO(7);
+
+    const { count: clicksLast7Days, error: last7Error } = await supabase
+        .from("clicks")
+        .select("id", { count: "exact", head: true })
+        .eq("url_id", url.id)
+        .gte("created_at", sevenDaysAgo);
+
+    if (last7Error) {
+        return null;
+    }
+
+    const { data: clicksByDayRaw, error: byDayError } = await supabase
+        .from("clicks")
+        .select("created_at")
+        .eq("url_id", url.id)
+        .gte("created_at", daysAgoISO(30))
+        .order("created_at", { ascending: true });
+
+    if (byDayError) {
+        return null;
+    }
+
+    const dayMap = new Map<string, number>();
+    for (const row of clicksByDayRaw ?? []) {
+        const d = new Date(row.created_at as string);
+        const dayKey = startOfDayISO(d).slice(0, 10); // YYYY-MM-DD
+        dayMap.set(dayKey, (dayMap.get(dayKey) ?? 0) + 1);
+    }
+
+    const clicksByDay = Array.from(dayMap.entries())
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([day, count]) => ({ day, count }));
+
+    const { data: refRows, error: refError } = await supabase
+        .from("clicks")
+        .select("referrer")
+        .eq("url_id", url.id);
+
+    if (refError) {
+        return null;
+    }
+
+    const refMap = new Map<string, number>();
+    for (const row of refRows ?? []) {
+        const key = (row.referrer as string | null) || "direct";
+        refMap.set(key, (refMap.get(key) ?? 0) + 1);
+    }
+
+    const topReferrers = Array.from(refMap.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([referrer, count]) => ({ referrer, count }));
+
+    const { data: deviceRows, error: deviceError } = await supabase
+        .from("clicks")
+        .select("device_type")
+        .eq("url_id", url.id);
+
+    if (deviceError) {
+        return null;
+    }
+
+    const deviceMap = new Map<string, number>();
+    for (const row of deviceRows ?? []) {
+        const key = (row.device_type as string | null) || "unknown";
+        deviceMap.set(key, (deviceMap.get(key) ?? 0) + 1);
+    }
+
+    const deviceBreakdown = Array.from(deviceMap.entries()).map(
+        ([deviceType, count]) => ({ deviceType, count })
+    );
+
+    return {
+        url: {
+            slug: url.slug,
+            targetUrl: url.target_url,
+            totalClicks,
+            createdAt: url.created_at,
+            expiresAt: url.expires_at,
+        },
+        analytics: {
+            clicksLast7Days: clicksLast7Days ?? 0,
+            clicksByDay,
+            topReferrers,
+            deviceBreakdown,
+        },
+    };
 }
 
 export default async function UrlAnalyticsPage({
