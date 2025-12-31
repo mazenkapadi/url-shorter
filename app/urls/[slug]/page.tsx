@@ -1,5 +1,6 @@
 // app/urls/[slug]/page.tsx
 import Link from "next/link";
+import { headers } from "next/headers";
 
 type AnalyticsResponse = {
     url: {
@@ -18,12 +19,11 @@ type AnalyticsResponse = {
 };
 
 async function getAnalytics(slug: string): Promise<AnalyticsResponse | null> {
-    // Always call the Next.js app's own API route, not the Supabase URL.
-    const base =
-        process.env.NEXT_PUBLIC_BASE_URL ??
-        (process.env.VERCEL_URL
-            ? `https://${process.env.VERCEL_URL}`
-            : "http://localhost:3000");
+    // Build an absolute URL to the app's own API route based on the incoming request.
+    const headersList = await headers();
+    const host = headersList.get("host");
+    const protocol = headersList.get("x-forwarded-proto") ?? "https";
+    const base = host ? `${protocol}://${host}` : "http://localhost:3000";
 
     const res = await fetch(`${base}/api/urls/${slug}/analytics`, {
         cache: "no-store",
