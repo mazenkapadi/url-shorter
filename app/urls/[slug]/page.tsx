@@ -18,11 +18,12 @@ type AnalyticsResponse = {
 };
 
 async function getAnalytics(slug: string): Promise<AnalyticsResponse | null> {
+    // Always call the Next.js app's own API route, not the Supabase URL.
     const base =
-        process.env.NEXT_PUBLIC_SUPABASE_URL ??
         process.env.NEXT_PUBLIC_BASE_URL ??
-        process.env.VERCEL_URL ??
-        "http://localhost:3000";
+        (process.env.VERCEL_URL
+            ? `https://${process.env.VERCEL_URL}`
+            : "http://localhost:3000");
 
     const res = await fetch(`${base}/api/urls/${slug}/analytics`, {
         cache: "no-store",
