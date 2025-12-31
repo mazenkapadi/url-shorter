@@ -4,9 +4,9 @@ import { getDeviceType } from "@/lib/analytics";
 
 export async function GET(
     req: NextRequest,
-    { params }: { params: { slug: string } }
+    context: unknown
 ) {
-    const { slug } = params;
+    const { slug } = await (context as { params: Promise<{ slug: string }> }).params;
     const supabase = await createSupabaseServerClient();
 
     const { data: url, error } = await supabase

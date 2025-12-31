@@ -9,10 +9,10 @@ type ClicksByDayRow = {
 
 export async function GET(
     _req: NextRequest,
-    { params }: { params: { slug: string } }
+    context: unknown
 ) {
     const supabase = await createSupabaseServerClient();
-    const { slug } = params;
+    const { slug } = await (context as { params: Promise<{ slug: string }> }).params;
 
     const { data: url, error: urlError } = await supabase
         .from("urls")
