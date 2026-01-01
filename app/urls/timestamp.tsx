@@ -7,3 +7,4 @@ export function Timestamp({ date }: { date: string }) {
 export function DateOnly({ date }: { date: string }) {
   return <>{new Date(date).toLocaleDateString()}</>;
 }
+
