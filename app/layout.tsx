@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -16,6 +16,10 @@ export const metadata: Metadata = {
   title: "URL Shortener Dashboard",
   description:
     "Minimal URL shortener with Supabase-backed click analytics, built on Next.js.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#050507",
 };
 
 export default function RootLayout({
