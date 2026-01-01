@@ -1,6 +1,7 @@
 // app/urls/page.tsx
 import Link from "next/link";
 import {createSupabaseServerClient} from "@/lib/supabase/server";
+import {Timestamp, DateOnly} from "./timestamp";
 
 export const dynamic = "force-dynamic";
 
@@ -103,11 +104,11 @@ export default async function UrlsPage() {
                                                 {u.clicks_count}
                                             </td>
                                             <td className="py-2 pr-4 align-top text-[11px] text-zinc-500">
-                                                {new Date(u.created_at).toLocaleString()}
+                                                <Timestamp date={u.created_at} />
                                             </td>
                                             <td className="py-2 pr-4 align-top text-[11px] text-zinc-500">
                                                 {u.expires_at
-                                                    ? new Date(u.expires_at).toLocaleDateString()
+                                                    ? <DateOnly date={u.expires_at} />
                                                     : "—"}
                                             </td>
                                             <td className="py-2 pr-0 align-top text-right">
